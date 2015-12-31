@@ -18,6 +18,7 @@ Inception已经支持Percon ToolKit工具**`pt-online-schema-change`**，这样�
 |inception_osc_max_lag                   	| SESSION 	 |3      	 |对应参数--max-lag|
 |inception_osc_max_thread_connected      	| SESSION 	 |1000   	 |对应参数--max-load中的thread_connected部分|
 |inception_osc_max_thread_running        	| SESSION 	 |80     	 |对应参数--max-load中的thread_running部分|
+|inception_osc_recursion_method| SESSION|processlist      	 |对应OSC参数recursion_method，具体意义可以参考OSC官方手册|
 |inception_osc_min_table_size            	| SESSION 	 |16     	 |这个参数实际上是一个OSC的开关，如果设置为0，则全部ALTER语句都走OSC，如果设置为非0，则当这个表占用空间大小大于这个值时才使用OSC方式。单位为M，这个表大小的计算方式是通过语句： **"select (DATA_LENGTH + INDEX_LENGTH)/1024/1024 from information_schema.tables where table_schema = 'dbname' and table_name = 'tablename'"**来实现的。|
 |inception_osc_on                        	| GLOBAL  	 |1      	 |一个全局的OSC开关，默认是打开的，如果想要关闭则设置为OFF，这样就会直接修改|
 |inception_osc_print_sql                 	| GLOBAL  	 |1      	 |对应参数--print|
@@ -42,6 +43,7 @@ inception get osc_percent '当前执行的SQL语句以及一些基本信息生�
 * **SQLSHA1**：当前要查询的语句的SHA1字符串；
 * **PERCENT**：当前修改已经完成的百分比，这个值是0到100的值。
 * **REMAINTIME**：当前修改语句还需要多久才能完成，如03:55表示还需要三分55秒，01:33:44表示还需要1小时33分44秒。
+* **INFOMATION**：显示当前OSC执行时的状态信息，内容为OSC当前所有的输出信息，不包括百分比信息，百分比还是由上面的列来显示，这个方便在使用时随时查看执行到哪一步了，可以更加清楚的了解到执行进度。
 
 下图是在ALTER的时候，查到的正在做的信息：
 ![](inception_images/osc.png)
@@ -59,7 +61,7 @@ inception get osc_percent '当前执行的SQL语句以及一些基本信息生�
 1 | CHECKED | 0 | Audit completed | None | use sbtest | 0 | '0_0_0' | None | 0 |
 2 | CHECKED | 0 | Audit completed | None | alter table sbtest1 add c2 int not null default 'a' comment 'for test' | 449234 | '0_0_1' | 127_0_0_1_3306_sbtest | 0 | *F270A6902BB3A0E2DE042A60D79F55418C8D1C00
 ````
-其中"***F270A6902BB3A0E2DE042A60D79F55418C8D1C00**"就是上面ALTER语句对应的SQLSHA1值。
+其中"***98A11AC683C0D121568A51CA33A3A94674326630**"就是上面ALTER语句对应的SQLSHA1值。
 
 当进入执行阶段之后，在执行当前语句时，OSC会向inception返回进度信息，Inception在收到之后，会根据当前语句的SHA1值更新对应的进度信息，OSC会每百分之一返回一次进度信息，那Inception都会更新当前语句对应的进度信息，OSC不会返回100%，最大99%，而Inception做了处理，当检查到有successfully altered的信息之后，就将进度信息改为100%，剩余时间为00:00，而99%到100%之间做的事情包括清除环境的操作，所以时间可能比之前的1%的时间要长。
 
@@ -79,6 +81,14 @@ inception stop alter '当前执行的SQL语句以及一些基本信息生成的S
 2. 在取消语句的错误描述信息中，报错为`"Execute has been abort in percent: 已执行比例, remain time: 剩余时间"`  
 3. 在取消之后，当前语句之后的所有语句不会执行，当然状态为未执行。  
 4. 被取消语句，在取消之后，结果集stagestatus列的信息会设置为`"Execute Aborted"`。  
+##查看所有OSC执行信息
+语句如下：
+````
+inception get osc processlist;
+````
+这个语句的功能是打印所有当前正在使用OSC执行的操作，如果在同一个inception请求中有多个ALTER语句，那么显示出来的有可能存在执行进度为100%的语句，通过这个语句，可以轻松查看当前每一个OSC执行进度，如果是卡住了（比如存在从库复制延迟），在这里可以看到具体信息。
+
+实际上看到的信息和上面`inception get osc_percent '当前执行的SQL语句以及一些基本信息生成的SHA1哈希值'`返回的结果是一样的，只是这个返回了所有信息。
 
 ##后记
 **需要注意的是**，OSC全局参数最好别频繁修改，因为针对某一个语句的SHA1是分阶段的，生成是在审核阶段的，如果在审核时候没有打开，或者设置的表大小没有满足OSC方式，则不会生成SHA1，那么在执行时候，这个进度就不能被查询了，这个语句的执行情况就不能获取到，影响执行过程的体验。当然这个影响也不大，因为在执行完成之后，如果执行成功了，并且参数`inception_osc_print_none`为OFF，则会看到打印信息，里面包括成功或者失败的所有信息，而如果为ON，则如果结果集中有信息，则说明是执行错误了，如果没有则说明成功。

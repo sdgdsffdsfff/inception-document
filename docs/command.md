@@ -1,4 +1,4 @@
-#inception命令集语句
+#Inception命令集语句
 Inception命令是一个Inception所支持的一系列命令集，为了与原MySQL的命令区分，在命令前面使用Inception这个新的关键字。
 
 这个命令集包括的功能有：打印线上服务器的一些信息，支持所有show命令，只要在原来show命令前面加上inception即可，返回的结果集放在上面所述结果集的SQL列中，前面是当前执行的inception命令，以冒号分隔，后面接着是执行show命令得到的结果集，每行以换行符分隔，一行中的不同列的数据，以竖线“|”分隔。此外还包括上面设置或查看相关参数的三个命令，这三个命令只能通过MySQL客户端或者编程直接执行，而不需要加上数据源、标记语句等信息。因为它是对Inception本身进行操作的。
@@ -66,5 +66,26 @@ inception get osc_percent '当前执行的SQL语句以及一些基本信息生�
 
 上面是正在做的，而如果语句块中有多个修改表的操作，则前面的会看到执行完成的进度信息：
 ![](inception_images/osccomplete.png)
+
+
+###查看当前processlist
+inception还可以查看当前正在执行的所有线程信息，语法为：
+````
+inception get processlist;
+````
+![](inception_images/processlist.png)
+当前命令执行之后，返回的结果信息如上图所示，每一个列介绍如下：
+
+1. id:一个简单的计数。
+2. dest_user:表示当前执行语句访问数据库时所用的用户名。
+3. dest_host:表示当前执行语句要访问的数据库地址。
+4. dest_port:表示当前执行语句要访问的数据库的端口。
+5. from_host:表示当前执行语句是从机器上发起的。
+6. command:表示当前执行的是什么操作，包括CHECK（简单审核），EXECUTE（执行），SPLIT（拆分），PRINT（打印计划树），LOCAL（本地命令）。
+7. state:表示在当前命令下，执行的状态是什么，状态包括INIT（初始阶段），CHECKING（正在审核），EXECUTING（正在执行），DEINIT（退出），BACKUP（正在备份）。
+8. time:表示当前语句执行所用时间。
+9. info:显示当前正在执行的语句。
+
+
 
 
